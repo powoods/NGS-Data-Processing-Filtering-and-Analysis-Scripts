@@ -1,0 +1,24 @@
+###This is a generic script for Performing QTL Mapping in R using a Bi-parental Mapping Population###
+###This code assumes that there are separate .csv files for phenotype and genotype data###
+###Code can be modified depending on your project's needs###
+
+#All analyses will be conducted using the R/qtl package in R#
+
+#First load the R/qtl package and read in your data files#
+library(qtl)
+Cross<-read.cross("csvs",genotypes=c("a","h","b"),genfile="genetic_map.csv",phefile="phenotype_data.csv") #Since this code is from an F2 population, the genotype codes in the genotyep data are "a" (homozygous parent 1), "h" (heterozygous), and "b" (homozygous parent 2).
+
+#Calculate genotype probabilities#
+Cross<-calc.genoprob(hemp,step=1,err=.001,map.function="kosambi") #using the Kosambi mapping function because it allows for genetic interference
+
+#Perform single QTL Interval Mapping for the first phenotype#
+pheno1_IM <- scanone(Cross, method = "hk", pheno.col = 1) #scans the linkage map and calculates the LOD scores at each marker for marker - trait associations
+pheno1_IM_permutations <- scanone(Cross, method = "hk", pheno.co=1, n.perm = 1000) #perform permutations test 1000 times to obtain a 5% LOD significance threshold
+summary(pheno1_IM_permutations) #get the 5% LOD significance threshold for phenotype 1 based on 1000 permutations
+
+#Make a QTL object so that we can obtain the signifiance and percent variance explained of a suspected QTL#
+pheno1_qtl <- makeqtl(Cross, chr = c(1), pos = c(30), what = "prob") #makes a qtl object based on a hypothetical qtl identified for phenotype 1 on chromosome 1 at genetic position 30cM
+pheno1_qtl_fit <- fitqtl(Cross, pheno.col = 1, formula = y~Q1, method = "hk", get.ests = TRUE, qtl = pheno1_qtl) #constructs the formal ANOVA model to test the signifiance and variance explained of the pheno1_qtl object
+summary(pheno1_qtl_fit) #obtain estimated effects, significance, and percent variance explained of the qtl identified for phenotype 1
+
+#Repeat this process for all phenotypes measured in the study#
