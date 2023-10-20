@@ -1,0 +1,107 @@
+###General SNP Calling Pipeline Starting From Raw Paired - End FASTQ Files###
+
+#First step is to identify read quality and which adapters (if any) are present in the reads using FastQC#
+
+for f in *.fastq.gz #Common suffix to enable looping over all files
+do
+fastqc $f
+done
+
+#Inspect the .html file for each file to estimate quality + adapter trimming parameters#
+
+#Quality Trim and Adapter Trim Raw FASTQ Files Using Trimmomatic#
+#Set up a For Loop that will Automate the Trimming For All Paired - End Reads#
+for f in *R1_001.fastq.gz #Common suffix for each R1 file
+do
+r1=$f
+r2=${f/R1_001.fastq.gz}R2_001.fastq.gz #Common suffix for each R2 file
+r3=${f/R1_001.fastq.gz}trimmed_R1.fastq.gz #trimmed output R1
+r4=${f/R1_001.fastq.gz}trimmed_R2.fastq.gz #trimmed otuput R2
+r5=${f/R1_001.fastq.gz}unpaired_R1.fastq.gz #unpaired output R1
+r6=${f/R1_001.fastq.gz}unpaired_R2.fastq.gz #unpaired output R2
+echo "trimmomatic PE -t 24 $r1 $r2 $r3 $r5 $r4 $r6 ILLUMINACLIP:NexteraPE-PE.fa:2:30:10 LEADING:3 TRAILING:3 SLIDINGWINDOW:4:15 MINLEN:36" #Remove echo and quotes if the loop inputs all file names correctly
+done 
+
+#Now prepare reference genome for read mapping using the software BWA#
+#We must first index the reference genome#
+bwa index <reference_genome.fasta>
+
+#Indexing the reference genome will produce several index files#
+
+#Now align quality + adapter trimmed reads to the index reference genome to produce a .sam file#
+for i in *trimmed_R1.fastq #Common suffix for all trimmed R1 files
+do
+r1=$i
+r2=${i/trimmed_R1.fastq}trimmed_R2.fastq #Common suffix for all trimmed R2 files
+r3=${i/trimmed_R1.fastq}
+echo "bwa mem -M -t 24 reference_genome.fasta $r1 $r2 > ${r3}.sam" #Remove echo and quotes if the loop inputs all file names correctly
+done
+
+#Process sequence alignment map (sam) files prior to SNP calling#
+#convert the .sam file to a .bam file for computational efficiency using SAMtools#
+for f in *.sam #Common suffix for all .sam files
+do
+r1=$f
+r2=${f/.sam}.bam #change suffix of output to .bam
+echo "samtools view -@ 24 -S -b $r1 > $r2" #Remove the echo and quotes if the loop inputs all file names correctly
+done
+
+#Sort .sam file by read name#
+for f in *.bam #Common file suffix
+do
+r1=$f
+r2=${f/.bam}nsorted.bam #modify suffix to include sorting information
+echo "samtools sort -@24 -n $r1 -o $r2" #Remove echo and quotes if the loop inputs all file names correctly
+done
+EOF 
+
+#Remove PCR duplicates from name sorted .bam files#
+for f in *nsorted.bam #Common suffix
+do
+r1=$f
+r2=${f/nsorted.bam}nsorted_fix.bam #Modified suffix to reflect changes
+echo "samtools fixmate -@24 -m $r1 $r2" #Remove echo and quotes if loop inputs all file names correctly
+done
+
+for f in *.nsorted_fixbam #Common suffix of previously generated files
+do
+r1=$f
+r2=${f/nsoted_fix.bam}nsorted_fix_possorted.bam #Modified suffix of output files
+echo "samtools sort @24 $r1 -o $r2" #Remove echo is loop inputs all file names correctly
+done
+
+for f in *nsorted_fix_possorted.bam #Common suffix of previously genereated files
+do
+r1=$f
+r2=${f/nsorted_fix_possorted.bam}nsorted_fix_possorted_mark.bam #Modified suffix for new output
+echo "samtools markdup -@24 $r1 $r2" #Removee echo and quotes if loop input file names correctly
+done
+
+#Final .bam filter to impose a minimum mapping quality of 10 and keep only properly paired reads#
+for f in *nsorted_fix_possorted_mark.bam #Common suffix of previously generated files
+do
+r1=$f
+r2=${f/nsorted_fix_possorted_mark.bam}q10_prop.bam #shorten the final suffix to imply that these files contain reads with minimum mapping quality of 10 and are also properly paired
+echo "samtools view -q 10 -f 0x002 -b $r1 > $r2" #Remove echo and quotes if loop inputs all file names correctly
+done
+
+#Index the final .bam files#
+for f in *q10_prop.bam #Common suffix of final .bam files
+do
+samtools index $f
+done
+
+#Now perform Variant Calling using BCFtools#
+#First generate a file containing a list of all final .bam files#
+ls *q10_prop.bam > samples.txt
+
+#Call BCFtools command "mpileup" with options included to obtain additional variant information and pipe the output to the BCFtools command "call" to generate the raw Variant Call File (.vcf.gz). The call command has been modified to include information on genotype quality in the .vcf.gz#
+bcftools mpileup -a FORMAT/DP -a FORMAT/SP -a FORMAT/AD -a INFO/AD -Ou -A -f reference_genome.fasta -b samples.txt | bcftools call -vmO z -f GQ,GP -o raw.vcf.gz
+
+
+
+
+
+
+
+
