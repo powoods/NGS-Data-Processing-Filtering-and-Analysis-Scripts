@@ -1,0 +1,40 @@
+###This file contains a Generic Workflow for Filtering a Raw .vcf.gz file to Contain High Quality/Confidence Genotype Calls###
+###The code in this workflow can be modified depending on the needs of the specific project###
+
+#First filter raw .vcf.gz for sites with a minimum quality of 30, a minor allele frequency of 0.05 and sites that are bi-allelic SNPs using VCFtools#
+vcftools --gzvcf raw.vcf.gz --minQ 30.0 --maf 0.05 --min-alleles 2 --max-alleles 2 --remove-indels --recode --recode-INFO-all --out q30_maf05_biSNPs
+
+#Now zip the vcf using BGzip to reduce its file size#
+bgzip q30_maf05_biSNPs.vcf
+
+#Use Tabix to index the zipped vcf#
+tabix -p vcf q30_maf_biSNPs.vcf.gz
+
+#Now read the zipped + indexed vcf into R for read depth filtering using the R package vcfR#
+vcf <- read.vcfR(file.choose(), verbose = F) #read in the lightly filtered (no missing data, bi-allelic and minQ 30.0) .vcf.gz file
+dp <- extract.gt(vcf, element = "DP", as.numeric = T) #calculate the raw read depth of every variant per sample
+boxplot(dp, ylab = "Depth") #make a boxplot to visualize the raw read depth per locus per sample
+sums <- apply(dp, MARGIN=2, quantile, probs=c(0.05,0.95), na.rm=TRUE) #calculate a 90% confidence interval for sample read depth
+dp2 <- sweep(dp, MARGIN=2, FUN = "-", sums[1,])
+dp[dp2 < 0] <- NA
+dp2 <- sweep(dp, MARGIN =2, FUN = "-", sums[2,])
+dp[dp2 > 0] <- NA
+dp[dp < 4] <- NA #set a minimum read depth of 4 for each genotype call
+boxplot(dp, ylab = "Depth") #visualize the filtered read depth of loci within the 90% confidence interval
+is.na( vcf@gt[,-1][is.na(dp) ] ) <- TRUE #update the original vcfR object so that all genotype calls not within the 90% confidence interval are changed to "no call"
+vcf #observe the increased percent of missing data
+write.vcf(vcf, file = "q30_maf05_biSNPs_minDP4_90CIdp.vcf.gz")
+
+#Now we will use VCFtools one more time to filter our vcf to retain sites with a maximum of 25% missing data#
+
+vcftools --gzvcf q30_maf05_biSNPs_minDP4_90CIdp.vcf.gz --max-missing 0.25 --recode --recode-INFO-all --out q30_maf05_biSNPs_minDP4_90CIdp_max_miss_25
+
+#Depending on your project's needs, the output VCF is ready for analyses#
+
+
+
+
+
+
+
+
