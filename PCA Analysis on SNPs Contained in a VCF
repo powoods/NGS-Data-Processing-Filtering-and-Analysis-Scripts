@@ -1,0 +1,19 @@
+###Here is a basic script for performing Principal Component Analysis (PCA) on SNP data contained within a Variant Call file (.vcf)###
+###The script can be modified depending on your project's needs###
+
+#All code will be performed using the SNPRelate package in R#
+library(SNPRelate)
+vcf.fn <- file.choose() #read in the vcf to be analyzed using PCA
+snpgdsVCF2GDS(vcf.fn, "name.gds", method = "biallelic.only") #Convert the vcf object to a Genomic Data Sctructure (gds) object (required for SNPRelate)
+genofile <- snpgdsOpen("name.gds") #formally name the newly created (gds) object
+sample.id <- read.gdsn(index.gdsn(genofile, "sample.id")) #make a list of sample IDs contained in the vcf
+population_code <- scan(file.choose(), what=character()) #If you have a metadata file with population information in it, you can load it in to distinguish samples once we visualize the PCA
+pca <- snpgdsPCA(genofile, autosome.only = FALSE) #conduct the PCA analysis on the gds object
+pc.percentage <- pca$varprop * 100 #calculate the percent genetic variance explained by each PC
+head(pc.percentage) #obtain the percent variance explained for the first five PCs
+tab <- data.frame(sample.id = pca$sample.id,  EV1 = pca$eigenvect[,1], EV2 = pca$eigenvect[,2], EV3 = pca$eigenvect[,3], EV4 = pca$eigenvect[,4], EV5 = pca$eigenvect[,5], stringsAsFactors = FALSE) #extract PC values from the first five principal components and organize them into a dataframe
+plot(tab$EV1, tab$EV2, col=as.integer(population_code$population), xlab = "PC1", ylab = "PC2", main = "PCA") #plot the first two principal components
+legend("bottomleft", legend=levels(population_code$population), pch = "o", col=1:nlevels(population_code$population)) #add a legend to the figure
+labels <- read.table(file.choose())
+text(pca$eigenvect[,1], pca$eigenvect[,2], labels = labels$V1, pos=4, cex = 0.25)
+write.csv(tab, file = "PCA.csv") #export the first five PC values as a .csv file.
