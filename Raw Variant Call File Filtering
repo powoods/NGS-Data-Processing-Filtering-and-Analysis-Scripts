@@ -11,7 +11,7 @@ bgzip q30_maf05_biSNPs.vcf
 tabix -p vcf q30_maf_biSNPs.vcf.gz
 
 #Now read the zipped + indexed vcf into R for read depth filtering using the R package vcfR#
-vcf <- read.vcfR(file.choose(), verbose = F) #read in the lightly filtered (no missing data, bi-allelic and minQ 30.0) .vcf.gz file
+vcf <- read.vcfR(file.choose(), verbose = F) #read in the lightly filtered (bi-allelic, SNPs, and minQ 30.0) .vcf.gz file
 dp <- extract.gt(vcf, element = "DP", as.numeric = T) #calculate the raw read depth of every variant per sample
 boxplot(dp, ylab = "Depth") #make a boxplot to visualize the raw read depth per locus per sample
 sums <- apply(dp, MARGIN=2, quantile, probs=c(0.05,0.95), na.rm=TRUE) #calculate a 90% confidence interval for sample read depth
