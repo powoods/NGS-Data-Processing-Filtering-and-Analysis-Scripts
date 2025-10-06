@@ -27,7 +27,7 @@ write.vcf(vcf, file = "q30_maf05_biSNPs_minDP4_90CIdp.vcf.gz")
 
 #Now we will use VCFtools one more time to filter our vcf to retain sites with a maximum of 25% missing data#
 
-vcftools --gzvcf q30_maf05_biSNPs_minDP4_90CIdp.vcf.gz --max-missing 0.25 --recode --recode-INFO-all --out q30_maf05_biSNPs_minDP4_90CIdp_max_miss_25
+vcftools --gzvcf q30_maf05_biSNPs_minDP4_90CIdp.vcf.gz --max-missing 0.75 --recode --recode-INFO-all --out q30_maf05_biSNPs_minDP4_90CIdp_max_miss_25
 
 #Depending on your project's needs, the output VCF is ready for analyses#
 
